@@ -127,7 +127,9 @@
       <HintPath>packages\Microsoft.AspNet.WebApi.WebHost.5.2.3\lib\net45\System.Web.Http.WebHost.dll</HintPath>
     </Reference>
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <None Include="Properties\PublishProfiles\dotnet-ci-deps-mirror - Web Deploy.pubxml" />
+  </ItemGroup>
   <ItemGroup>
     <Compile Include="App_Start\WebApiConfig.cs" />
     <Compile Include="Controllers\PackageAddedController.cs" />
@@ -135,7 +137,10 @@
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>
-    <Compile Include="Models\PackagedAddedModel.cs" />
+    <Compile Include="Models\Package.cs" />
+    <Compile Include="Models\PackageAddedWebHookEventPayloadV1.cs" />
+    <Compile Include="Models\PackageMetadata.cs" />
+    <Compile Include="Models\WebHookEvent.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

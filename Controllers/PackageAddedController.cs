@@ -29,27 +29,24 @@ namespace PackageMirror.Controllers
         }
 
         // POST api/values
-        public async Task Post([FromBody]string modelString)
+        public async Task Post([FromBody]WebHookEvent webHookEvent)
         {
             try
             {
-                JObject modelJson = JObject.Parse(modelString);
-                if (modelJson?.Value<string>("PayloadType") == "PackageAddedWebHookEventPayloadV1")
+                if (webHookEvent?.PayloadType == "PackageAddedWebHookEventPayloadV1")
                 {
-                    PackageAddedModel model = JsonConvert.DeserializeObject<PackageAddedModel>(modelString);
-
-                    if (model?.Payload?.PackageType == "NuGet")
+                    if (webHookEvent.Payload?.PackageType == "NuGet")
                     {
-                        if (ShouldMirrorPackage(model.Payload.FeedUrl, model.Payload.PackageIdentifier))
+                        if (ShouldMirrorPackage(webHookEvent.Payload.FeedUrl, webHookEvent.Payload.PackageIdentifier))
                         {
-                            string downloadUrl = model.Payload.PackageDownloadUrl;
+                            string downloadUrl = webHookEvent.Payload.PackageDownloadUrl;
 
-                            PackageSource packageSource = new PackageSource(model.Payload.FeedUrl);
+                            PackageSource packageSource = new PackageSource(webHookEvent.Payload.FeedUrl);
                             SourceRepository repo = new SourceRepository(packageSource, Repository.Provider.GetCoreV3());
 
                             DownloadResource downloadResource = await repo.GetResourceAsync<DownloadResource>();
 
-                            PackageIdentity id = new PackageIdentity(model.Payload.PackageIdentifier, new NuGetVersion(model.Payload.PackageVersion));
+                            PackageIdentity id = new PackageIdentity(webHookEvent.Payload.PackageIdentifier, new NuGetVersion(webHookEvent.Payload.PackageVersion));
                             DownloadResourceResult downloadResult = await downloadResource.GetDownloadResourceResultAsync(
                                     id,
                                     s_settings,
