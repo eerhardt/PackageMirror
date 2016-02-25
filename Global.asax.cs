@@ -1,5 +1,4 @@
 ﻿using System.Web.Http;
-using System.Web.Mvc;
 
 namespace PackageMirror
 {
@@ -8,7 +7,6 @@ namespace PackageMirror
         protected void Application_Start()
         {
             GlobalConfiguration.Configure(WebApiConfig.Register);
-            FilterConfig.RegisterGlobalFilters(GlobalFilters.Filters);
         }
     }
 }
