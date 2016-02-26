@@ -30,10 +30,10 @@ The second part of the filter is a normal .NET Regex which will be applied to th
 
 Examples:
 
-<add key="https://dotnet.myget.org/F/dotnet-corert/" value=""/>
+`<add key="https://dotnet.myget.org/F/dotnet-corert/" value=""/>`
 
 - all packages from dotnet-corert will be mirrored
 
-<add key="https://dotnet.myget.org/F/dotnet-core/" value="V-\d+.\d+.\d+-rc2-.*|ID-xunit"/>
+`<add key="https://dotnet.myget.org/F/dotnet-core/" value="V-\d+.\d+.\d+-rc2-.*|ID-xunit"/>`
 
-- any package with an ID of the form X.Y.Z-rc-* or any package with "xunit" in its name will be mirrored.
+- any package with a Version of the form X.Y.Z-rc-* or any package with "xunit" in its Identifier will be mirrored.
