@@ -129,6 +129,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Properties\PublishProfiles\dotnet-ci-deps-mirror - Web Deploy.pubxml" />
+    <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="App_Start\WebApiConfig.cs" />
