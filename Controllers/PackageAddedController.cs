@@ -24,6 +24,8 @@ namespace PackageMirror.Controllers
     {
         private static ISettings s_settings = Settings.LoadDefaultSettings(AppContext.BaseDirectory, configFileName: null, machineWideSettings: null);
         private static ConcurrentDictionary<Uri, List<string>> s_filterCache = new ConcurrentDictionary<Uri, List<string>>();
+        private static ConcurrentDictionary<Uri, DownloadResource> s_downloadResourceCache = new ConcurrentDictionary<Uri, DownloadResource>();
+        private static PackagePushResource s_packagePushResource;
 
         public async Task Post([FromBody]WebHookEvent webHookEvent)
         {
@@ -36,12 +38,10 @@ namespace PackageMirror.Controllers
                     if (webHookEvent.Payload?.PackageType == "NuGet")
                     {
                         PackageAddedWebHookEventPayloadV1 payload = webHookEvent.Payload;
-                        if (ShouldMirrorPackage(new Uri(payload.FeedUrl), payload.PackageIdentifier, payload.PackageVersion))
+                        Uri feedUrl = new Uri(payload.FeedUrl);
+                        if (ShouldMirrorPackage(feedUrl, payload.PackageIdentifier, payload.PackageVersion))
                         {
-                            PackageSource packageSource = new PackageSource(payload.FeedUrl);
-                            SourceRepository repo = new SourceRepository(packageSource, Repository.Provider.GetCoreV3());
-
-                            DownloadResource downloadResource = await repo.GetResourceAsync<DownloadResource>();
+                            DownloadResource downloadResource = await GetDownloadResource(feedUrl);
 
                             PackageIdentity id = new PackageIdentity(payload.PackageIdentifier, new NuGetVersion(payload.PackageVersion));
                             DownloadResourceResult downloadResult = await downloadResource.GetDownloadResourceResultAsync(
@@ -78,6 +78,21 @@ namespace PackageMirror.Controllers
             {
                 TraceInfo($"POST PackageAdded Complete");
             }
+        }
+
+        private static async Task<DownloadResource> GetDownloadResource(Uri feedUrl)
+        {
+            DownloadResource resource;
+            if (!s_downloadResourceCache.TryGetValue(feedUrl, out resource))
+            {
+                PackageSource packageSource = new PackageSource(feedUrl.AbsoluteUri);
+                SourceRepository repo = new SourceRepository(packageSource, Repository.Provider.GetCoreV3());
+
+                DownloadResource downloadResource = await repo.GetResourceAsync<DownloadResource>();
+                s_downloadResourceCache.TryAdd(feedUrl, downloadResource);
+            }
+
+            return resource;
         }
 
         private static bool ShouldMirrorPackage(Uri feedUrl, string packageId, string packageVersion)
@@ -137,20 +152,29 @@ namespace PackageMirror.Controllers
 
         private static async Task PushPackage(DownloadResourceResult downloadResult)
         {
-            string destinationUrl = GetDestinationFeedUrl();
-            PackageSource packageSource = new PackageSource(destinationUrl);
-            SourceRepository repo = new SourceRepository(packageSource, Repository.Provider.GetCoreV3());
-
             using (Stream stream = downloadResult.PackageStream)
             {
-                HttpSourcePrivate source = HttpSourcePrivate.Create(repo);
-
-                PackagePushResource pushCommandResource = new PackagePushResource(destinationUrl, source);
+                PackagePushResource pushCommandResource = GetPackagePushResource();
                 await pushCommandResource.Push(stream,
                     GetPushTimeout(),
                     GetApiKey,
                     new NullLogger());
             }
+        }
+
+        private static PackagePushResource GetPackagePushResource()
+        {
+            if (s_packagePushResource == null)
+            {
+                string destinationUrl = GetDestinationFeedUrl();
+                PackageSource packageSource = new PackageSource(destinationUrl);
+                SourceRepository repo = new SourceRepository(packageSource, Repository.Provider.GetCoreV3());
+                HttpSourcePrivate source = HttpSourcePrivate.Create(repo);
+
+                s_packagePushResource = new PackagePushResource(destinationUrl, source);
+            }
+
+            return s_packagePushResource;
         }
 
         private static string GetDestinationFeedUrl()
