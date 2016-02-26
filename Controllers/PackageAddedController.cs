@@ -12,6 +12,7 @@ using System.Web.Http;
 using NuGet.Configuration;
 using NuGet.Logging;
 using NuGet.Packaging.Core;
+using NuGet.Protocol;
 using NuGet.Protocol.Core.Types;
 using NuGet.Protocol.Core.v3;
 using NuGet.Versioning;
@@ -136,27 +137,19 @@ namespace PackageMirror.Controllers
 
         private static async Task PushPackage(DownloadResourceResult downloadResult)
         {
-            PackageSource packageSource = new PackageSource(GetDestinationFeedUrl());
+            string destinationUrl = GetDestinationFeedUrl();
+            PackageSource packageSource = new PackageSource(destinationUrl);
             SourceRepository repo = new SourceRepository(packageSource, Repository.Provider.GetCoreV3());
 
-            string tempFile = Path.GetTempFileName();
-            try
+            using (Stream stream = downloadResult.PackageStream)
             {
-                using (Stream stream = downloadResult.PackageStream)
-                using (FileStream fileStream = File.OpenWrite(tempFile))
-                {
-                    await stream.CopyToAsync(fileStream);
-                }
+                HttpSourcePrivate source = HttpSourcePrivate.Create(repo);
 
-                PackageUpdateResource pushCommandResource = await repo.GetResourceAsync<PackageUpdateResource>();
-                await pushCommandResource.Push(tempFile,
-                            GetPushTimeout(),
-                            GetApiKey,
-                            new NullLogger());
-            }
-            finally
-            {
-                File.Delete(tempFile);
+                PackagePushResource pushCommandResource = new PackagePushResource(destinationUrl, source);
+                await pushCommandResource.Push(stream,
+                    GetPushTimeout(),
+                    GetApiKey,
+                    new NullLogger());
             }
         }
 
@@ -175,7 +168,7 @@ namespace PackageMirror.Controllers
             return timeout;
         }
 
-        private static string GetApiKey(string s)
+        private static string GetApiKey(string source)
         {
             return ConfigurationManager.AppSettings["DestinationApiKey"];
         }
