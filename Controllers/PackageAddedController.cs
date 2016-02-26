@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -21,10 +22,12 @@ namespace PackageMirror.Controllers
     public class PackageAddedController : ApiController
     {
         private static ISettings s_settings = Settings.LoadDefaultSettings(AppContext.BaseDirectory, configFileName: null, machineWideSettings: null);
+        private static ConcurrentDictionary<Uri, List<string>> s_filterCache = new ConcurrentDictionary<Uri, List<string>>();
 
-        // POST api/values
         public async Task Post([FromBody]WebHookEvent webHookEvent)
         {
+            TraceInfo($"POST PackageAdded Started");
+
             try
             {
                 if (webHookEvent?.PayloadType == "PackageAddedWebHookEventPayloadV1")
@@ -48,31 +51,33 @@ namespace PackageMirror.Controllers
 
                             await PushPackage(downloadResult);
 
-                            // log "success" request
+                            TraceInfo($"Successfully pushed package {payload.PackageIdentifier} {payload.PackageVersion}");
                         }
                         else
                         {
-                            // log "diagnostic" request that package didn't match filter
+                            TraceInfo($"Package didn't match any filters {payload.PackageIdentifier} {payload.PackageVersion}");
                         }
                     }
                     else
                     {
-                        // log invalid request
+                        TraceInfo($"Non NuGet package added: {webHookEvent.Payload?.PackageType}");
                     }
                 }
                 else
                 {
-                    // log invalid request
+                    TraceError($"Not a valid PayloadType: {webHookEvent?.PayloadType}");
                 }
             }
-            catch
+            catch (Exception e)
             {
-                // log error
+                TraceError($"An unhandled exception occurred: {e}");
                 throw;
             }
+            finally
+            {
+                TraceInfo($"POST PackageAdded Complete");
+            }
         }
-
-        private static ConcurrentDictionary<Uri, List<string>> s_filterCache = new ConcurrentDictionary<Uri, List<string>>();
 
         private static bool ShouldMirrorPackage(Uri feedUrl, string packageId, string packageVersion)
         {
@@ -99,7 +104,7 @@ namespace PackageMirror.Controllers
             // no settings exist for this feed
             if (filters.Count == 0)
             {
-                // log couldn't find feed
+                TraceError($"Couldn't find feed: {feedUrl}");
                 return false;
             }
 
@@ -124,7 +129,7 @@ namespace PackageMirror.Controllers
             }
             else
             {
-                // log invalid filter
+                TraceError($"Invalid filter: {filter}");
                 return false;
             }
         }
@@ -173,6 +178,16 @@ namespace PackageMirror.Controllers
         private static string GetApiKey(string s)
         {
             return ConfigurationManager.AppSettings["DestinationApiKey"];
+        }
+
+        private static void TraceInfo(string message)
+        {
+            Trace.TraceInformation(message);
+        }
+
+        private static void TraceError(string message)
+        {
+            Trace.TraceError(message);
         }
     }
 }
