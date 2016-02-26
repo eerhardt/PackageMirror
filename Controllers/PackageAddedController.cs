@@ -37,7 +37,7 @@ namespace PackageMirror.Controllers
                 {
                     if (webHookEvent.Payload?.PackageType == "NuGet")
                     {
-                        if (ShouldMirrorPackage(webHookEvent.Payload.FeedUrl, webHookEvent.Payload.PackageIdentifier))
+                        if (ShouldMirrorPackage(webHookEvent.Payload.FeedUrl, webHookEvent.Payload.PackageVersion))
                         {
                             string downloadUrl = webHookEvent.Payload.PackageDownloadUrl;
 
@@ -79,13 +79,14 @@ namespace PackageMirror.Controllers
             }
         }
 
-        private static bool ShouldMirrorPackage(string feedUrl, string packageId)
+        private static bool ShouldMirrorPackage(string feedUrl, string packageVersion)
         {
             string feedFilter = ConfigurationManager.AppSettings[feedUrl];
 
             // setting doesn't exist for this feed
             if (feedFilter == null)
             {
+                // log couldn't find feed
                 return false;
             }
 
@@ -95,8 +96,8 @@ namespace PackageMirror.Controllers
                 return true;
             }
 
-            // filter the packageId on the feedFilter
-            return Regex.IsMatch(packageId, feedFilter);
+            // filter the packageVersion on the feedFilter
+            return Regex.IsMatch(packageVersion, feedFilter);
         }
 
         private static async Task PushPackage(DownloadResourceResult downloadResult)
