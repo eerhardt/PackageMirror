@@ -11,10 +11,12 @@ using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Http;
+using System.Collections.Concurrent;
 
 namespace PackageMirror.Controllers
 {
@@ -37,16 +39,15 @@ namespace PackageMirror.Controllers
                 {
                     if (webHookEvent.Payload?.PackageType == "NuGet")
                     {
-                        if (ShouldMirrorPackage(webHookEvent.Payload.FeedUrl, webHookEvent.Payload.PackageVersion))
+                        PackageAddedWebHookEventPayloadV1 payload = webHookEvent.Payload;
+                        if (ShouldMirrorPackage(new Uri(payload.FeedUrl), payload.PackageIdentifier, payload.PackageVersion))
                         {
-                            string downloadUrl = webHookEvent.Payload.PackageDownloadUrl;
-
-                            PackageSource packageSource = new PackageSource(webHookEvent.Payload.FeedUrl);
+                            PackageSource packageSource = new PackageSource(payload.FeedUrl);
                             SourceRepository repo = new SourceRepository(packageSource, Repository.Provider.GetCoreV3());
 
                             DownloadResource downloadResource = await repo.GetResourceAsync<DownloadResource>();
 
-                            PackageIdentity id = new PackageIdentity(webHookEvent.Payload.PackageIdentifier, new NuGetVersion(webHookEvent.Payload.PackageVersion));
+                            PackageIdentity id = new PackageIdentity(payload.PackageIdentifier, new NuGetVersion(payload.PackageVersion));
                             DownloadResourceResult downloadResult = await downloadResource.GetDownloadResourceResultAsync(
                                     id,
                                     s_settings,
@@ -79,25 +80,61 @@ namespace PackageMirror.Controllers
             }
         }
 
-        private static bool ShouldMirrorPackage(string feedUrl, string packageVersion)
-        {
-            string feedFilter = ConfigurationManager.AppSettings[feedUrl];
+        private static ConcurrentDictionary<Uri, List<string>> s_filterCache = new ConcurrentDictionary<Uri, List<string>>();
 
-            // setting doesn't exist for this feed
-            if (feedFilter == null)
+        private static bool ShouldMirrorPackage(Uri feedUrl, string packageId, string packageVersion)
+        {
+            List<string> filters;
+            if (!s_filterCache.TryGetValue(feedUrl, out filters))
+            {
+                filters = new List<string>();
+
+                foreach (string key in ConfigurationManager.AppSettings)
+                {
+                    Uri keyUri;
+                    if (Uri.TryCreate(key, UriKind.Absolute, out keyUri))
+                    {
+                        if (feedUrl.Equals(keyUri))
+                        {
+                            filters.AddRange(ConfigurationManager.AppSettings[key].Split('|'));
+                        }
+                    }
+                }
+
+                s_filterCache.TryAdd(feedUrl, filters);
+            }
+
+            // no settings exist for this feed
+            if (filters.Count == 0)
             {
                 // log couldn't find feed
                 return false;
             }
 
-            // a blank setting exists, which means all packages
-            if (feedFilter.Length == 0)
+            // if there is only a blank filter for this feed, all packages should be included
+            if (filters.Count == 1 && filters[0].Length == 0)
             {
                 return true;
             }
 
-            // filter the packageVersion on the feedFilter
-            return Regex.IsMatch(packageVersion, feedFilter);
+            return filters.Any(f => EvaluateFilter(f, packageId, packageVersion));
+        }
+
+        private static bool EvaluateFilter(string filter, string packageId, string packageVersion)
+        {
+            if (filter.StartsWith("ID-"))
+            {
+                return Regex.IsMatch(packageId, filter.Substring(3));
+            }
+            else if (filter.StartsWith("V-"))
+            {
+                return Regex.IsMatch(packageVersion, filter.Substring(2));
+            }
+            else
+            {
+                // log invalid filter
+                return false;
+            }
         }
 
         private static async Task PushPackage(DownloadResourceResult downloadResult)
