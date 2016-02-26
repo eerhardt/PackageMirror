@@ -1,13 +1,5 @@
-﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using NuGet.Configuration;
-using NuGet.Logging;
-using NuGet.Packaging.Core;
-using NuGet.Protocol.Core.Types;
-using NuGet.Protocol.Core.v3;
-using NuGet.Versioning;
-using PackageMirror.Models;
-using System;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Configuration;
 using System.IO;
@@ -16,7 +8,13 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web.Http;
-using System.Collections.Concurrent;
+using NuGet.Configuration;
+using NuGet.Logging;
+using NuGet.Packaging.Core;
+using NuGet.Protocol.Core.Types;
+using NuGet.Protocol.Core.v3;
+using NuGet.Versioning;
+using PackageMirror.Models;
 
 namespace PackageMirror.Controllers
 {
@@ -116,11 +114,11 @@ namespace PackageMirror.Controllers
 
         private static bool EvaluateFilter(string filter, string packageId, string packageVersion)
         {
-            if (filter.StartsWith("ID-"))
+            if (filter.StartsWith("ID-", StringComparison.Ordinal))
             {
                 return Regex.IsMatch(packageId, filter.Substring(3));
             }
-            else if (filter.StartsWith("V-"))
+            else if (filter.StartsWith("V-", StringComparison.Ordinal))
             {
                 return Regex.IsMatch(packageVersion, filter.Substring(2));
             }
