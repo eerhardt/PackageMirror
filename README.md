@@ -36,4 +36,4 @@ Examples:
 
 `<add key="https://dotnet.myget.org/F/dotnet-core/" value="V-\d+.\d+.\d+-rc2-.*|ID-xunit"/>`
 
-- any package with a Version of the form X.Y.Z-rc-* or any package with "xunit" in its Identifier will be mirrored.
+- any package with a Version of the form X.Y.Z-rc2-* or any package with "xunit" in its Identifier will be mirrored.
