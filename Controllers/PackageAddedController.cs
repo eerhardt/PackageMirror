@@ -24,12 +24,6 @@ namespace PackageMirror.Controllers
     {
         private static ISettings s_settings = Settings.LoadDefaultSettings(AppContext.BaseDirectory, configFileName: null, machineWideSettings: null);
 
-        // GET api/values
-        public IEnumerable<string> Get()
-        {
-            return new string[] { "value3", "value4" };
-        }
-
         // POST api/values
         public async Task Post([FromBody]WebHookEvent webHookEvent)
         {
