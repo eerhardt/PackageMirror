@@ -128,7 +128,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Properties\PublishProfiles\dotnet-ci-deps-mirror - Web Deploy.pubxml" />
+    <None Include="Properties\PublishProfiles\dotnet-cli-deps-mirror - Web Deploy.pubxml" />
     <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>

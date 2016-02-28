@@ -88,8 +88,8 @@ namespace PackageMirror.Controllers
                 PackageSource packageSource = new PackageSource(feedUrl.AbsoluteUri);
                 SourceRepository repo = new SourceRepository(packageSource, Repository.Provider.GetCoreV3());
 
-                DownloadResource downloadResource = await repo.GetResourceAsync<DownloadResource>();
-                s_downloadResourceCache.TryAdd(feedUrl, downloadResource);
+                resource = await repo.GetResourceAsync<DownloadResource>();
+                s_downloadResourceCache.TryAdd(feedUrl, resource);
             }
 
             return resource;
