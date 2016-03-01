@@ -17,6 +17,7 @@ using NuGet.Protocol.Core.Types;
 using NuGet.Protocol.Core.v3;
 using NuGet.Versioning;
 using PackageMirror.Models;
+using PackageMirror.NuGet;
 
 namespace PackageMirror.Controllers
 {
@@ -44,13 +45,14 @@ namespace PackageMirror.Controllers
                             DownloadResource downloadResource = await GetDownloadResource(feedUrl);
 
                             PackageIdentity id = new PackageIdentity(payload.PackageIdentifier, new NuGetVersion(payload.PackageVersion));
-                            DownloadResourceResult downloadResult = await downloadResource.GetDownloadResourceResultAsync(
+                            using (DownloadResourceResult downloadResult = await downloadResource.GetDownloadResourceResultAsync(
                                     id,
                                     s_settings,
                                     new NullLogger(),
-                                    CancellationToken.None);
-
-                            await PushPackage(downloadResult);
+                                    CancellationToken.None))
+                            {
+                                await PushPackage(downloadResult);
+                            }
 
                             TraceInfo($"Successfully pushed package {payload.PackageIdentifier} {payload.PackageVersion}");
                         }
@@ -86,7 +88,7 @@ namespace PackageMirror.Controllers
             if (!s_downloadResourceCache.TryGetValue(feedUrl, out resource))
             {
                 PackageSource packageSource = new PackageSource(feedUrl.AbsoluteUri);
-                SourceRepository repo = new SourceRepository(packageSource, Repository.Provider.GetCoreV3());
+                SourceRepository repo = new SourceRepository(packageSource, PrivateProviders.Get().Union(Repository.Provider.GetCoreV3()));
 
                 resource = await repo.GetResourceAsync<DownloadResource>();
                 s_downloadResourceCache.TryAdd(feedUrl, resource);

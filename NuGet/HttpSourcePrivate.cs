@@ -154,7 +154,7 @@ namespace NuGet.Protocol
                     _httpClient,
                     requestWithStsFactory,
                     completionOption,
- //                   log,
+                    log,
                     cancellationToken);
 
                 if (response.StatusCode == HttpStatusCode.Unauthorized)
