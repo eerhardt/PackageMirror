@@ -32,6 +32,8 @@ namespace PackageMirror.Controllers
         {
             TraceInfo($"POST PackageAdded Started");
 
+            string packageId = null;
+            string packageVersion = null;
             try
             {
                 if (webHookEvent?.PayloadType == "PackageAddedWebHookEventPayloadV1")
@@ -39,26 +41,38 @@ namespace PackageMirror.Controllers
                     if (webHookEvent.Payload?.PackageType == "NuGet")
                     {
                         PackageAddedWebHookEventPayloadV1 payload = webHookEvent.Payload;
+                        packageId = payload.PackageIdentifier;
+                        packageVersion = payload.PackageVersion;
+
                         Uri feedUrl = new Uri(payload.FeedUrl);
-                        if (ShouldMirrorPackage(feedUrl, payload.PackageIdentifier, payload.PackageVersion))
+                        if (ShouldMirrorPackage(feedUrl, packageId, packageVersion))
                         {
+                            TraceInfo($"Downloading package {packageId} {packageVersion}");
+
                             DownloadResource downloadResource = await GetDownloadResource(feedUrl);
 
-                            PackageIdentity id = new PackageIdentity(payload.PackageIdentifier, new NuGetVersion(payload.PackageVersion));
+                            PackageIdentity id = new PackageIdentity(packageId, new NuGetVersion(packageVersion));
                             using (DownloadResourceResult downloadResult = await downloadResource.GetDownloadResourceResultAsync(
                                     id,
                                     s_settings,
                                     new NullLogger(),
                                     CancellationToken.None))
                             {
-                                await PushPackage(downloadResult);
+                                if (downloadResult.Status == DownloadResourceResultStatus.Available)
+                                {
+                                    await PushPackage(downloadResult);
+                                }
+                                else
+                                {
+                                    TraceError($"The package {packageId} {packageVersion} was not available.");
+                                }
                             }
 
-                            TraceInfo($"Successfully pushed package {payload.PackageIdentifier} {payload.PackageVersion}");
+                            TraceInfo($"Successfully pushed package {packageId} {packageVersion}");
                         }
                         else
                         {
-                            TraceInfo($"Package didn't match any filters {payload.PackageIdentifier} {payload.PackageVersion}");
+                            TraceInfo($"Package didn't match any filters {packageId} {packageVersion}");
                         }
                     }
                     else
@@ -73,7 +87,7 @@ namespace PackageMirror.Controllers
             }
             catch (Exception e)
             {
-                TraceError($"An unhandled exception occurred: {e}");
+                TraceError($"An unhandled exception occurred handling package {packageId} {packageVersion} : {e}");
                 throw;
             }
             finally
