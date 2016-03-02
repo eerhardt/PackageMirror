@@ -61,14 +61,15 @@ namespace PackageMirror.Controllers
                                 if (downloadResult.Status == DownloadResourceResultStatus.Available)
                                 {
                                     await PushPackage(downloadResult);
+                                    TraceInfo($"Successfully pushed package {packageId} {packageVersion}");
                                 }
                                 else
                                 {
-                                    TraceError($"The package {packageId} {packageVersion} was not available.");
+                                    string message = $"The package {packageId} {packageVersion} was not available.";
+                                    TraceError(message);
+                                    throw new Exception(message);
                                 }
                             }
-
-                            TraceInfo($"Successfully pushed package {packageId} {packageVersion}");
                         }
                         else
                         {
