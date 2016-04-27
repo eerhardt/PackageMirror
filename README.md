@@ -24,7 +24,9 @@ A filter has two parts separated by a dash `-`.
 
 The first part specifies what the filter applies to. Currently supported are:
 - ID - the package identifier
+- xID - exclude packages with an identifier
 - V - the package version
+- xV - exclude packages with a version
 
 The second part of the filter is a normal .NET Regex which will be applied to the package.
 

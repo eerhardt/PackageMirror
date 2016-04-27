@@ -147,10 +147,18 @@ namespace PackageMirror.Controllers
                 return true;
             }
 
-            return filters.Any(f => EvaluateFilter(f, packageId, packageVersion));
+            return ShouldIncludePackage(filters, packageId, packageVersion) &&
+                !ShouldExcludePackage(filters, packageId, packageVersion);
         }
 
-        private static bool EvaluateFilter(string filter, string packageId, string packageVersion)
+        private static bool ShouldIncludePackage(List<string> filters, string packageId, string packageVersion)
+        {
+            return filters
+                .Where(f => !f.StartsWith("x", StringComparison.Ordinal))
+                .Any(f => EvaluateIncludeFilter(f, packageId, packageVersion));
+        }
+
+        private static bool EvaluateIncludeFilter(string filter, string packageId, string packageVersion)
         {
             if (filter.StartsWith("ID-", StringComparison.Ordinal))
             {
@@ -159,6 +167,30 @@ namespace PackageMirror.Controllers
             else if (filter.StartsWith("V-", StringComparison.Ordinal))
             {
                 return Regex.IsMatch(packageVersion, filter.Substring(2));
+            }
+            else
+            {
+                TraceError($"Invalid filter: {filter}");
+                return false;
+            }
+        }
+
+        private static bool ShouldExcludePackage(List<string> filters, string packageId, string packageVersion)
+        {
+            return filters
+                .Where(f => f.StartsWith("x", StringComparison.Ordinal))
+                .Any(f => EvaluateExcludeFilter(f, packageId, packageVersion));
+        }
+
+        private static bool EvaluateExcludeFilter(string filter, string packageId, string packageVersion)
+        {
+            if (filter.StartsWith("xID-", StringComparison.Ordinal))
+            {
+                return Regex.IsMatch(packageId, filter.Substring(4));
+            }
+            else if (filter.StartsWith("xV-", StringComparison.Ordinal))
+            {
+                return Regex.IsMatch(packageVersion, filter.Substring(3));
             }
             else
             {
