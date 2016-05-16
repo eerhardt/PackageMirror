@@ -153,9 +153,12 @@ namespace PackageMirror.Controllers
 
         private static bool ShouldIncludePackage(List<string> filters, string packageId, string packageVersion)
         {
-            return filters
-                .Where(f => !f.StartsWith("x", StringComparison.Ordinal))
-                .Any(f => EvaluateIncludeFilter(f, packageId, packageVersion));
+            var includeFilters = filters
+                .Where(f => !f.StartsWith("x", StringComparison.Ordinal));
+
+            // if there are no include filters for this feed, all packages should be included
+            return !includeFilters.Any() || 
+                includeFilters.Any(f => EvaluateIncludeFilter(f, packageId, packageVersion));
         }
 
         private static bool EvaluateIncludeFilter(string filter, string packageId, string packageVersion)
