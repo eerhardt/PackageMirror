@@ -134,6 +134,7 @@
   <ItemGroup>
     <Compile Include="App_Start\WebApiConfig.cs" />
     <Compile Include="Controllers\PackageAddedController.cs" />
+    <Compile Include="Models\ExtraDestination.cs" />
     <Compile Include="NuGet\DownloadResourceV2FeedPrivate.cs" />
     <Compile Include="NuGet\GetDownloadResultUtilityPrivate.cs" />
     <Compile Include="NuGet\HttpSourcePrivate.cs" />

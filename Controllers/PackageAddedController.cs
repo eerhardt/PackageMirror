@@ -44,12 +44,12 @@ namespace PackageMirror.Controllers
                         packageId = payload.PackageIdentifier;
                         packageVersion = payload.PackageVersion;
 
-                        Uri feedUrl = new Uri(payload.FeedUrl);
-                        if (ShouldMirrorPackage(feedUrl, packageId, packageVersion))
+                        Uri sourceFeedUrl = new Uri(payload.FeedUrl);
+                        if (ShouldMirrorPackage(sourceFeedUrl, packageId, packageVersion))
                         {
                             TraceInfo($"Downloading package {packageId} {packageVersion}");
 
-                            DownloadResource downloadResource = await GetDownloadResource(feedUrl);
+                            DownloadResource downloadResource = await GetDownloadResource(sourceFeedUrl);
 
                             PackageIdentity id = new PackageIdentity(packageId, new NuGetVersion(packageVersion));
                             using (DownloadResourceResult downloadResult = await downloadResource.GetDownloadResourceResultAsync(
@@ -60,7 +60,7 @@ namespace PackageMirror.Controllers
                             {
                                 if (downloadResult.Status == DownloadResourceResultStatus.Available)
                                 {
-                                    await PushPackage(downloadResult);
+                                    await PushPackage(downloadResult, sourceFeedUrl);
                                     TraceInfo($"Successfully pushed package {packageId} {packageVersion}");
                                 }
                                 else
@@ -157,7 +157,7 @@ namespace PackageMirror.Controllers
                 .Where(f => !f.StartsWith("x", StringComparison.Ordinal));
 
             // if there are no include filters for this feed, all packages should be included
-            return !includeFilters.Any() || 
+            return !includeFilters.Any() ||
                 includeFilters.Any(f => EvaluateIncludeFilter(f, packageId, packageVersion));
         }
 
@@ -202,16 +202,69 @@ namespace PackageMirror.Controllers
             }
         }
 
-        private static async Task PushPackage(DownloadResourceResult downloadResult)
+        private static async Task PushPackage(DownloadResourceResult downloadResult, Uri sourceFeedUrl)
         {
-            using (Stream stream = downloadResult.PackageStream)
+            List<PackagePushResource> destinations = GetAllPackageDestinations(sourceFeedUrl);
+
+            if (destinations.Count == 1)
             {
-                PackagePushResource pushCommandResource = GetPackagePushResource();
-                await pushCommandResource.Push(stream,
-                    GetPushTimeout(),
-                    GetApiKey,
-                    new NullLogger());
+                // special case 1 so we don't have to duplicate any memory and copy streams around
+                await PushPackage(destinations[0], downloadResult.PackageStream);
             }
+            else
+            {
+                // if we have to push it to more than 1 place, copy the package in-memory so it can be reset
+                using (MemoryStream memoryStream = new MemoryStream())
+                {
+                    await downloadResult.PackageStream.CopyToAsync(memoryStream);
+
+                    foreach (PackagePushResource pushCommandResource in destinations)
+                    {
+                        memoryStream.Position = 0;
+
+                        using (MemoryStream clonedStream = new MemoryStream((int)Math.Min(memoryStream.Length, int.MaxValue)))
+                        {
+                            await memoryStream.CopyToAsync(clonedStream);
+                            clonedStream.Position = 0;
+
+                            await PushPackage(pushCommandResource, clonedStream);
+                        }
+                    }
+                }
+            }
+        }
+
+        private static Task PushPackage(PackagePushResource pushCommandResource, Stream stream)
+        {
+            // NOTE: pushCommandResource.Push will dispose of the stream passed into it
+
+            return pushCommandResource.Push(stream,
+                GetPushTimeout(),
+                GetApiKey,
+                new NullLogger());
+        }
+
+        private static List<PackagePushResource> GetAllPackageDestinations(Uri sourceFeedUrl)
+        {
+            List<PackagePushResource> result = new List<PackagePushResource>();
+            result.Add(GetPackagePushResource());
+
+            List<ExtraDestination> extraDestinations = ExtraDestination.Parse(ConfigurationManager.AppSettings["ExtraDestinations"]);
+
+            foreach (ExtraDestination extraDestination in extraDestinations)
+            {
+                if (Uri.Compare(
+                    extraDestination.SourceFeedUrl, 
+                    sourceFeedUrl, 
+                    UriComponents.AbsoluteUri, 
+                    UriFormat.SafeUnescaped, 
+                    StringComparison.OrdinalIgnoreCase) == 0)
+                {
+                    result.Add(CreatePackagePushResource(extraDestination.DestinationFeedUrl.ToString()));
+                }
+            }
+
+            return result;
         }
 
         private static PackagePushResource GetPackagePushResource()
@@ -219,14 +272,19 @@ namespace PackageMirror.Controllers
             if (s_packagePushResource == null)
             {
                 string destinationUrl = GetDestinationFeedUrl();
-                PackageSource packageSource = new PackageSource(destinationUrl);
-                SourceRepository repo = new SourceRepository(packageSource, Repository.Provider.GetCoreV3());
-                HttpSourcePrivate source = HttpSourcePrivate.Create(repo);
-
-                s_packagePushResource = new PackagePushResource(destinationUrl, source);
+                s_packagePushResource = CreatePackagePushResource(destinationUrl);
             }
 
             return s_packagePushResource;
+        }
+
+        private static PackagePushResource CreatePackagePushResource(string destinationUrl)
+        {
+            PackageSource packageSource = new PackageSource(destinationUrl);
+            SourceRepository repo = new SourceRepository(packageSource, Repository.Provider.GetCoreV3());
+            HttpSourcePrivate source = HttpSourcePrivate.Create(repo);
+
+            return new PackagePushResource(destinationUrl, source);
         }
 
         private static string GetDestinationFeedUrl()
