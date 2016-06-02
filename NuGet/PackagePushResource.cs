@@ -154,5 +154,10 @@ namespace NuGet.Protocol.Core.Types
 
             return new Uri(value);
         }
+
+        public override string ToString()
+        {
+            return $"{GetType().Name}: {_source}";
+        }
     }
 }

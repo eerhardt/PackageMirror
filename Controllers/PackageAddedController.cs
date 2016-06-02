@@ -236,8 +236,10 @@ namespace PackageMirror.Controllers
 
         private static Task PushPackage(PackagePushResource pushCommandResource, Stream stream)
         {
+            TraceInfo($"Pushing package to {pushCommandResource.ToString()}");
+            
             // NOTE: pushCommandResource.Push will dispose of the stream passed into it
-
+            
             return pushCommandResource.Push(stream,
                 GetPushTimeout(),
                 GetApiKey,
